@@ -55,9 +55,12 @@ handle_call(_Request, _From, State) ->
     {noreply, State}.
 
 -spec handle_info(any(), #s{}) -> {noreply, #s{}}.
-%% Handle monitor
-handle_info({'DOWN', _File, _, _, _}, State = #s{current_workers = Current}) ->
-    {noreply, State#s{current_workers = Current - 1, child = undefined}};
+%% Handle monitor for workers
+handle_info({'DOWN', _, _, _, _}, State = #s{sched_queue = Queue,
+                                                 current_workers = Current}) ->
+    {Queue1, NewChild, Current1} = worker_eval(Queue, Current - 1),
+    {noreply, State#s{current_workers = Current1, child = NewChild,
+                      sched_queue = Queue1}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -76,23 +79,19 @@ worker_spawn(Id, Fun, State = #s{pool_limit = Limit,
                                  current_workers = Current,
                                  child           = Child,
                                  sched_queue     = Queue}) ->
-    %% Get id => fun from sched_queue or args
-    {Current1, NewQueue, NewChild} = case queue:is_empty(Queue) of
-        %% Limit exceed => new task in queue schedule
-        _ when Current >= Limit ->
-            Queue1 = queue:in({Id, Fun}, Queue),
-            {Current, Queue1, Child};
-        %% Get task from args
-        true ->
-            PidRef = erlang:spawn_monitor(Fun),
-            {Current + 1, Queue, PidRef};
-        %% Get task from queue
-        false ->
-            {{value, {_Id1, Fun1}}, Queue1} = queue:out(Queue),
-            Queue2 = queue:in({Id, Fun}, Queue1),
-            PidRef = erlang:spawn_monitor(Fun1),
-            {Current + 1, Queue2, PidRef}
+    Queue1 = queue:in({Id, Fun}, Queue),
+    {NewQueue, NewChild, Current1} = case Current < Limit of
+        true  -> worker_eval(Queue1, Current);
+        false -> {Queue1, Child, Current}
     end,
     State#s{current_workers = Current1,
             sched_queue     = NewQueue,
             child           = NewChild}.
+
+worker_eval(Queue, Current) ->
+    case queue:out(Queue) of
+        {empty, Queue1} -> {Queue1, undefined, Current};
+        {{value, {_Id1, Fun1}}, Queue1} ->
+            PidRef = erlang:spawn_monitor(Fun1),
+            {Queue1, PidRef, Current + 1}
+    end.
