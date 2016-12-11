@@ -1,0 +1,14 @@
+{application, async,
+ [
+  {description, "Developer useful tools"},
+  {vsn, "0.1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib,
+                  crypto,
+                  systools
+                 ]},
+  {mod, { async_app, []}},
+  {env, []}
+ ]}.
