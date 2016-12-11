@@ -58,11 +58,8 @@ handle_call(Reqest, _From, State) ->
 
 -spec handle_cast(_Reqest, #s{}) -> {noreply, #s{}}.
 handle_cast(heartbeat, State = #s{changed_files = Files}) ->
-    io:format("heartbeat ~p ~n", [Files]),
+    ok = eval_changes(Files),
     {noreply, State#s{changed_files = queue:new()}};
-handle_cast(_Reqest, State = #s{changed_files = {[], []}}) ->
-    io:format("empty ~n"),
-    {noreply, State};
 handle_cast(Reqest, State) ->
     io:format("Unknown handle_cast ~p ~n", [Reqest]),
     {noreply, State}.
@@ -71,9 +68,20 @@ handle_cast(Reqest, State) ->
 handle_info({Id, File = #inotify{}},
             State = #s{inotify = Inotify, changed_files = Files})
   when Id == Inotify ->
-    io:format("Add ~p~n", [File]),
     {noreply, State#s{changed_files = queue:in(File, Files)}};
 
 handle_info(Info, State) ->
     io:format("Unknown handle_info ~p ~n", [Info]),
     {noreply, State}.
+
+eval_changes(Files) ->
+    case queue:out(Files) of
+        {empty, _} -> ok;
+        {{value, #inotify{file = File}}, Files1} ->
+            async_pool:spawn(File,
+                             fun() ->
+                                     timer:sleep(2000),
+                                     io:format("Chagne ~p~n", [File])
+                             end),
+            eval_changes(Files1)
+    end.
