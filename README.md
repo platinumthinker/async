@@ -1,7 +1,7 @@
 # async
 Sync inspired developer helper tools but very customizing.
 
-# Requares:
+## Requares:
 Sync uses intotify-tools for monitoring FS and rebar for compile this project.
 
 ## For build:
