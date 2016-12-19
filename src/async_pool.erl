@@ -35,7 +35,7 @@
 start_link(Max) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Max], []).
 
--spec spawn(Id :: any(), Fun :: fun(() -> any())) -> ok.
+-spec spawn(Id, Fun :: fun((Id) -> any())) -> ok when Id :: any().
 spawn(Id, Fun) -> gen_server:cast(?MODULE, {spawn, Id, Fun}).
 
 -spec init(Max :: pos_integer()) -> {ok, #s{}}.
@@ -91,7 +91,7 @@ worker_spawn(Id, Fun, State = #s{pool_limit = Limit,
 worker_eval(Queue, Current) ->
     case queue:out(Queue) of
         {empty, Queue1} -> {Queue1, undefined, Current};
-        {{value, {_Id1, Fun1}}, Queue1} ->
-            PidRef = erlang:spawn_monitor(Fun1),
+        {{value, {Id1, Fun1}}, Queue1} ->
+            PidRef = erlang:spawn_monitor(fun() -> Fun1(Id1) end),
             {Queue1, PidRef, Current + 1}
     end.

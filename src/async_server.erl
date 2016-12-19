@@ -74,14 +74,14 @@ handle_info(Info, State) ->
     io:format("Unknown handle_info ~p ~n", [Info]),
     {noreply, State}.
 
+%% ====================== Internal functions ================================
+-spec eval_changes(queue:queue(#inotify{})) -> ok.
 eval_changes(Files) ->
     case queue:out(Files) of
         {empty, _} -> ok;
-        {{value, #inotify{file = File}}, Files1} ->
-            async_pool:spawn(File,
-                             fun() ->
-                                     timer:sleep(2000),
-                                     io:format("Chagne ~p~n", [File])
-                             end),
+        {{value, Event = #inotify{file = File, watched = Dir}}, Files1} ->
+            io:format("Eval event: ~p~n", [Event]),
+            FilePath = filename:absname(filename:join(Dir, File)),
+            async_pool:spawn(FilePath, fun async_compiler:processing_file/1),
             eval_changes(Files1)
     end.
