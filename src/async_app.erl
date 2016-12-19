@@ -9,8 +9,9 @@
 %% Application callbacks
 %% ===================================================================
 
+-spec start(normal, list()) -> {ok | error, _Reason}.
 start(_StartType, _StartArgs) ->
     async_sup:start_link().
 
-stop(_State) ->
-    ok.
+-spec stop(atom()) -> ok.
+stop(_App) -> ok.
