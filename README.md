@@ -38,3 +38,5 @@ ha ha!
 - [ ] Notification for recompile files (and users callback)
 - [ ] Run eunit, dialyzer, elvis, user callback after reload file (optional)
 - [ ] Integrate with rebar (use options from rebar.config)
+- [ ] Patches other nodes in cluster
+- [ ] Writes changes on disk (beam files)
