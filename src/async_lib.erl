@@ -1,7 +1,9 @@
 -module(async_lib).
 
 -export([
-         chain/2
+         chain/2,
+         env/1,
+         env/2
         ]).
 
 -export_type([
@@ -18,3 +20,9 @@ chain([Fun | Funs], Arg) ->
         {done,   V} -> V;
         {error,  E} -> {error, E}
     end.
+
+-spec env(atom()) -> any().
+env(Prop) -> env(Prop, undefined).
+-spec env(atom(), any()) -> any().
+env(Prop, Default) ->
+    application:get_env(async, Prop, Default).

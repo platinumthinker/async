@@ -6,7 +6,8 @@
 
 -export([
          start_link/0,
-         heartbeat/0
+         heartbeat/0,
+         event/1
         ]).
 
 -export([
@@ -23,25 +24,32 @@
           pause = false :: boolean(),
           patching = false :: boolean(),
           changed_files = queue:new() :: queue:queue(),
-          timer :: timer:tref() | undefined
+          timer :: timer:tref() | undefined,
+          plugins :: any()
          }).
+
+%% API
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%% API
 -spec heartbeat() -> ok.
 heartbeat() -> gen_server:cast(?MODULE, heartbeat).
 
+-spec event(#inotify{}) -> any().
+event(Inotify = #inotify{}) -> ?MODULE ! {from_api, Inotify}.
+
+%% Gen server callbacks
 -spec init(_Args) -> #s{}.
 init(_Args) ->
+    Plugins = async_plugin:init([]),
     Events = [close_write, moved_to, move_self],
     Opts = [recursive, {exclude, "\\.git*."}, {events, Events}],
     Inotify = inotifywait:start(".", Opts),
     Interval = 2000, %% msec
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
-    {ok, #s{inotify = Inotify, timer = TRef}}.
+    {ok, #s{inotify = Inotify, timer = TRef, plugins = Plugins}}.
 
 -spec terminate(_Reason, #s{}) -> ok.
 terminate(_Reason, #s{inotify = Inotify}) ->
@@ -57,8 +65,9 @@ handle_call(Reqest, _From, State) ->
     {noreply, State}.
 
 -spec handle_cast(_Reqest, #s{}) -> {noreply, #s{}}.
-handle_cast(heartbeat, State = #s{changed_files = Files}) ->
-    ok = eval_changes(Files),
+handle_cast(heartbeat, State = #s{changed_files = Files,
+                                  plugins = PlugStates}) ->
+    ok = eval_changes(Files, PlugStates),
     {noreply, State#s{changed_files = queue:new()}};
 handle_cast(Reqest, State) ->
     io:format("Unknown handle_cast ~p ~n", [Reqest]),
@@ -67,7 +76,7 @@ handle_cast(Reqest, State) ->
 -spec handle_info(_Info, #s{}) -> {noreply, #s{}}.
 handle_info({Id, File = #inotify{}},
             State = #s{inotify = Inotify, changed_files = Files})
-  when Id == Inotify ->
+  when Id == Inotify; Id == from_api ->
     {noreply, State#s{changed_files = queue:in(File, Files)}};
 
 handle_info(Info, State) ->
@@ -75,13 +84,13 @@ handle_info(Info, State) ->
     {noreply, State}.
 
 %% ====================== Internal functions ================================
--spec eval_changes(queue:queue(#inotify{})) -> ok.
-eval_changes(Files) ->
+-spec eval_changes(queue:queue(#inotify{}), any()) -> ok.
+eval_changes(Files, PlugStates) ->
     case queue:out(Files) of
         {empty, _} -> ok;
-        {{value, Event = #inotify{file = File, watched = Dir}}, Files1} ->
-            io:format("Eval event: ~p~n", [Event]),
-            FilePath = filename:absname(filename:join(Dir, File)),
-            async_pool:spawn(FilePath, fun async_compiler:processing_file/1),
-            eval_changes(Files1)
+        {{value, Ev = #inotify{file = File, watched = Dir}}, Files1} ->
+            io:format("Eval event: ~p~n", [Ev]),
+            Path = filename:absname(filename:join(Dir, File)),
+            async_pool:spawn(Path, fun async_plugin:chain/1, {Ev, PlugStates}),
+            eval_changes(Files1, PlugStates)
     end.

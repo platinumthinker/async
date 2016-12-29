@@ -5,10 +5,9 @@
 -include_lib("systools/include/inotify.hrl").
 
 -export([
-         start_link/1
+         start_link/1,
+         spawn/3
         ]).
-
--export([ spawn/2 ]).
 
 -export([
          init/1,
@@ -28,24 +27,27 @@
           pool_limit = 1 :: pos_integer(),
           current_workers = 0 :: non_neg_integer(),
           child :: {pid(), erlang:references()} | undefined,
-          sched_queue :: queue:queue({Id :: pool_id(), fun()}) | undefined
+          sched_queue :: queue:queue({Id :: pool_id(), fun(), Arg :: any()}) | undefined
          }).
 
+%% API
 -spec start_link(Max :: pos_integer()) -> {ok, Limiter :: pool()}.
 start_link(Max) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [Max], []).
 
--spec spawn(Id, Fun :: fun((Id) -> any())) -> ok when Id :: any().
-spawn(Id, Fun) -> gen_server:cast(?MODULE, {spawn, Id, Fun}).
+-spec spawn(Id, Fun :: fun((Arg) -> any()), Arg) -> ok
+        when Id :: any(), Arg :: any().
+spawn(Id, Fun, Arg) -> gen_server:cast(?MODULE, {spawn, Id, Fun, Arg}).
 
+%% Gen server callbacks
 -spec init(Max :: pos_integer()) -> {ok, #s{}}.
 init(_Max) ->
     {ok, #s{pool_limit = 1,
             sched_queue = queue:new()}}.
 
 -spec handle_cast(_Request, #s{}) -> {noreply, #s{}}.
-handle_cast({spawn, Id, Fun}, State) ->
-    NewState = worker_spawn(Id, Fun, State),
+handle_cast({spawn, Id, Fun, Arg}, State) ->
+    NewState = worker_spawn(Id, Fun, Arg, State),
     {noreply, NewState};
 handle_cast(_Request, State) ->
     {noreply, State}.
@@ -75,11 +77,11 @@ terminate(_Reason, #s{child = {Pid, MonRef}}) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-worker_spawn(Id, Fun, State = #s{pool_limit = Limit,
+worker_spawn(Id, Fun, Arg, State = #s{pool_limit = Limit,
                                  current_workers = Current,
                                  child           = Child,
                                  sched_queue     = Queue}) ->
-    Queue1 = queue:in({Id, Fun}, Queue),
+    Queue1 = queue:in({Id, Fun, Arg}, Queue),
     {NewQueue, NewChild, Current1} = case Current < Limit of
         true  -> worker_eval(Queue1, Current);
         false -> {Queue1, Child, Current}
@@ -91,7 +93,7 @@ worker_spawn(Id, Fun, State = #s{pool_limit = Limit,
 worker_eval(Queue, Current) ->
     case queue:out(Queue) of
         {empty, Queue1} -> {Queue1, undefined, Current};
-        {{value, {Id1, Fun1}}, Queue1} ->
-            PidRef = erlang:spawn_monitor(fun() -> Fun1(Id1) end),
+        {{value, {_Id1, Fun1, Arg}}, Queue1} ->
+            PidRef = erlang:spawn_monitor(fun() -> Fun1(Arg) end),
             {Queue1, PidRef, Current + 1}
     end.

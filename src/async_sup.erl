@@ -10,7 +10,7 @@
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(I, Args, Type),
-        {I, {I, start_link, Args}, permanent, 5000, Type, [I]}).
+        {I, {I, start_link, Args}, permanent, 2000, Type, [I]}).
 
 %% ===================================================================
 %% API functions
@@ -26,9 +26,9 @@ start_link() ->
 
 -spec init([]) -> supervisor:child_spec().
 init([]) ->
-    {ok, { {one_for_one, 1, 5}, [
+    {ok, { {one_for_all, 10, 1}, [
                                  ?CHILD(async_server, [], worker),
-                                 ?CHILD(async_pool, [2], worker)
+                                 ?CHILD(async_pool, [2], supervisor)
                                  % ?CHILD(async_compiler, worker),
                                  % ?CHILD(async_notifier, worker)
                                 ]} }.
