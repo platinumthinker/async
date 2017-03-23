@@ -30,8 +30,7 @@ terminate(_State) -> ok.
     {ok, [{async_plugin:filetype(),
            async_plugin:filename(),
            [async_plugin:opt()]}]}.
-change({"erl", File, Event}, #s{default_compile_opts = DefOpts}) ->
-    io:format("detect change erl => ~p by event ~p~n", [File, Event]),
+change({"erl", _File, _Event}, #s{default_compile_opts = DefOpts}) ->
     Opts = [],
     NOpts = lists:usort(DefOpts ++ Opts),
     {ok, NOpts}.
@@ -43,11 +42,12 @@ change({"erl", File, Event}, #s{default_compile_opts = DefOpts}) ->
           Warn :: [string()]}} |
     {error, {Err :: [string()], Warn :: [string()]}}.
 compile({"erl", File, Opts}, _State) ->
-    io:format("erl => ~p recompile~n", [File]),
     compile:file(File, Opts).
 
 -spec pre_load(_, #s{}) -> ok.
-pre_load(_,   _) -> ok.
+pre_load({Module, _, _}, _) ->
+    io:format("erl => module ~p recompile~n", [Module]),
+    ok.
 
 -spec after_load(_, #s{}) -> ok.
 after_load(_, _) -> ok.

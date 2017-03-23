@@ -77,13 +77,21 @@ init(_) ->
 
 -spec chain({#inotify{}, #s{}}) -> ok | {ok | error, _Reason}.
 chain({#inotify{event = Event, file = File, watched = Dir}, State}) ->
-    async_lib:chain([
-                     fun change/1,
-                     fun compile/1,
-                     fun pre_load/1,
-                     fun load_binary/1,
-                     fun after_load/1
-                    ], {Event, File, Dir, State}).
+    Chain = [
+             fun change/1,
+             fun compile/1,
+             fun pre_load/1,
+             fun load_binary/1,
+             fun after_load/1
+            ],
+    Args = {Event, File, Dir, State},
+    case async_lib:chain(Chain, Args) of
+        {error, Reason} ->
+            io:format("Error in ~p =>~n ~p~n", [File, Reason]),
+            {error, Reason};
+        Other -> Other
+    end.
+
 
 
 %% ========================== Plugin Action Chain ============================

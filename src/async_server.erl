@@ -44,10 +44,20 @@ event(Inotify = #inotify{}) -> ?MODULE ! {from_api, Inotify}.
 -spec init(_Args) -> #s{}.
 init(_Args) ->
     Plugins = async_plugin:init([]),
-    Events = [close_write, moved_to, move_self],
-    Opts = [recursive, {exclude, "\\.git*."}, {events, Events}],
-    Inotify = inotifywait:start(".", Opts),
-    Interval = 2000, %% msec
+    UserEvents = async_lib:env(events, []),
+    Events = [close_write, moved_to, move_self] ++ UserEvents,
+    UserOpts = async_lib:env(inotify_opts, []),
+    Opts = [recursive, {exclude, "\\.git*."}, {events, Events}] ++ UserOpts,
+
+    UserPaths = async_lib:env(paths, []),
+    SpyPaths = [filename:dirname(X) || X <- code:get_path()] ++ UserPaths,
+
+    %% Add supplementary library for parse transform AST
+    code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- SpyPaths ])),
+
+    %% Follow for all directory in release
+    Inotify = inotifywait:start(string:join(SpyPaths, " "), Opts),
+    Interval = async_lib:env(collect_interval, 2000), %% msec
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
     {ok, #s{inotify = Inotify, timer = TRef, plugins = Plugins}}.
 
@@ -89,7 +99,6 @@ eval_changes(Files, PlugStates) ->
     case queue:out(Files) of
         {empty, _} -> ok;
         {{value, Ev = #inotify{file = File, watched = Dir}}, Files1} ->
-            io:format("Eval event: ~p~n", [Ev]),
             Path = filename:absname(filename:join(Dir, File)),
             async_pool:spawn(Path, fun async_plugin:chain/1, {Ev, PlugStates}),
             eval_changes(Files1, PlugStates)
