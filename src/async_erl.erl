@@ -30,9 +30,25 @@ terminate(_State) -> ok.
     {ok, [{async_plugin:filetype(),
            async_plugin:filename(),
            [async_plugin:opt()]}]}.
-change({"erl", _File, _Event}, #s{default_compile_opts = DefOpts}) ->
-    Opts = [],
-    NOpts = lists:usort(DefOpts ++ Opts),
+change({"erl", File, _Event}, #s{default_compile_opts = DefOpts}) ->
+    Module = list_to_atom(filename:basename(File, ".erl")),
+    Opts = case code:is_loaded(Module) of
+        {file, _} ->
+            ComOpts = Module:module_info(compile),
+            Opts1 = proplists:get_value(options, ComOpts, []),
+            lists:filtermap(
+              fun({out_dir, _}) ->
+                      OutDir = filename:dirname(code:which(Module)),
+                      {true, {out_dir, OutDir}};
+                 ({i, _}) -> false;
+                 (encrypt_debug_info) -> false;
+                 (debug_info) -> false;
+                 (_) -> true end, Opts1);
+        _ -> []
+    end,
+
+    OptsInc = include_dirs_opts(File),
+    NOpts = lists:usort(DefOpts ++ Opts ++ OptsInc),
     {ok, NOpts}.
 
 -spec compile({async_plugin:filetype(),
@@ -51,3 +67,15 @@ pre_load({Module, _, _}, _) ->
 
 -spec after_load(_, #s{}) -> ok.
 after_load(_, _) -> ok.
+
+include_dirs_opts(File) -> include_dirs_opts(File, []).
+include_dirs_opts("/", Acc) -> Acc;
+include_dirs_opts(".", Acc) -> Acc;
+include_dirs_opts(File, Acc) ->
+    Dir = filename:dirname(File),
+    Acc1 = [{i, filename:join(Dir, "include")} | Acc],
+    case filename:basename(File) of
+        "src" -> Acc1;
+        _ -> include_dirs_opts(Dir, Acc1)
+    end.
+
