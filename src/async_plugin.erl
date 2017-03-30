@@ -85,15 +85,15 @@ chain({#inotify{event = Event, file = File, watched = Dir}, State}) ->
              fun load_binary/1,
              fun after_load/1
             ],
-    Args = {Event, File, Dir, State},
-    case async_lib:chain(Chain, Args) of
+    user_callback('init', {Event, File, Dir}),
+    Res = case async_lib:chain(Chain, {Event, File, Dir, State}) of
         {error, Reason} ->
-            io:format("Error in ~p =>~n ~p~n", [File, Reason]),
+            io:format("Error in ~p => ~p~n", [File, Reason]),
             {error, Reason};
         Other -> Other
-    end.
-
-
+    end,
+    user_callback('end', {Event, File, Dir}),
+    Res.
 
 %% ========================== Plugin Action Chain ============================
 %% Callback Change file  -> done | error
@@ -112,7 +112,8 @@ change({Event, File, Dir, State}) ->
         Ext1 -> string:substr(Ext1, 2)
     end,
     FilePath = filename:absname(filename:join(Dir, File)),
-    case plug(Ext, change, {Ext, FilePath, Event}, State) of
+    Args = {Ext, FilePath, Event},
+    case plug(Ext, change, Args, State) of
         nothing -> {done, {not_found_plugin_for, Ext}};
         {ok, {NFile, NOpts}} ->
             NExt = filename:extension(NFile),
@@ -145,7 +146,9 @@ pre_load({Module, Binary, Warn, State = #s{ext = Ext} }) ->
 
 load_binary({Binary, State = #s{file = File, module = Module}}) ->
     case code:load_binary(Module, File, Binary) of
-        {module, Module} -> {ok, State};
+        {module, Module} ->
+            user_callback(load, Module),
+            {ok, State};
         Err -> Err
     end.
 
@@ -160,10 +163,31 @@ plugins() ->
 fold(Fun, Acc) -> lists:foldl(Fun, Acc, plugins()).
 
 plug(Ext, Action, Arg, #s{plugins = Plugins, filetypes = FS}) ->
-    case maps:find(Ext, FS) of
+    Res = case maps:find(Ext, FS) of
         {ok, Plugin} ->
             #{ Plugin := PluginState } = Plugins,
             Plugin:Action(Arg, PluginState);
         _ ->
             nothing
+    end,
+    user_callback(Action, Arg),
+    Res.
+
+-spec user_callback(Func :: atom(), Arg :: tuple()) -> ok.
+user_callback(Func, Arg) ->
+    case async_lib:env(Func, []) of
+        MF = {_, _} -> run_user_callback([MF], Arg);
+        Funcs  -> run_user_callback(Funcs, Arg)
     end.
+
+-spec run_user_callback([{M :: atom(), F :: atom()}], _) -> ok.
+run_user_callback([{M, F} | T], Arg)
+  when is_atom(M), is_atom(F) ->
+    case erlang:function_exported(M, F, 1) of
+        true ->
+            catch M:F(Arg);
+        _ ->
+            ok
+    end,
+    run_user_callback(T, Arg);
+run_user_callback([], _) -> ok.
