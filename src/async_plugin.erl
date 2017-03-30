@@ -69,10 +69,11 @@ init(_) ->
     {Plugins, Files} = fold(
         fun(Plugin, {AccState, AccFiletype}) ->
                 NewAcc = lists:foldl(
-                    fun(FType, Acc) -> Acc#{FType => Plugin} end,
-                    AccFiletype, Plugin:filetypes()),
-                 { AccState#{Plugin => Plugin:init([])}, NewAcc }
-         end, {#{}, #{}}),
+                    fun(FType, Acc) ->
+                            Acc#{FType => Plugin}
+                    end, AccFiletype, Plugin:filetypes()),
+                { AccState#{Plugin => Plugin:init([])}, NewAcc }
+        end, {#{}, #{}}),
     #s{plugins = Plugins, filetypes = Files}.
 
 -spec chain({#inotify{}, #s{}}) -> ok | {ok | error, _Reason}.
@@ -126,14 +127,15 @@ change({Event, File, Dir, State}) ->
 compile({Arg, State = #s{ext = Ext} }) ->
     case plug(Ext, compile, Arg, State) of
         {ok, Module, Binary, Warnings} ->
+            io:format("Compile ~p with warnings~n", [Module]),
             {ok, {Module, Binary, Warnings, State}};
-        {error, Errors, Warnings}      ->
-            {error, {Errors, Warnings}};
+        {error, _Errors, _Warnings}      ->
+            {error, compile_with_error};
         %% Error or Done
         {Other, Any} -> {Other, {Any, State}}
     end.
 
-pre_load({ Module, Binary, Warn, State = #s{ext = Ext} }) ->
+pre_load({Module, Binary, Warn, State = #s{ext = Ext} }) ->
     NState = State#s{module = Module},
     case plug(Ext, pre_load, {Module, Binary, Warn}, State) of
         ok -> {ok, {Binary, NState}};
@@ -153,7 +155,7 @@ after_load(State = #s{ext = Ext, module = Module}) ->
 
 %% ======================= Internal helper functions ==========================
 plugins() ->
-    [ async_erl ] ++ async_lib:env(plugins, []).
+    [ async_erl, async_hrl ] ++ async_lib:env(plugins, []).
 
 fold(Fun, Acc) -> lists:foldl(Fun, Acc, plugins()).
 

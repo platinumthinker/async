@@ -37,8 +37,13 @@ start_link() ->
 -spec heartbeat() -> ok.
 heartbeat() -> gen_server:cast(?MODULE, heartbeat).
 
--spec event(#inotify{}) -> any().
-event(Inotify = #inotify{}) -> ?MODULE ! {from_api, Inotify}.
+-spec event(#inotify{} | {File :: string(), Event :: atom()}) -> any().
+event(Inotify = #inotify{}) -> ?MODULE ! {from_api, Inotify};
+event({File, Event}) ->
+    F = filename:basename(File),
+    Dir = filename:dirname(File),
+    Inotify = #inotify{file = F, event = Event, watched = Dir, isdir = false},
+    event(Inotify).
 
 %% Gen server callbacks
 -spec init(_Args) -> #s{}.
@@ -50,7 +55,9 @@ init(_Args) ->
     Opts = [recursive, {exclude, "\\.git*."}, {events, Events}] ++ UserOpts,
 
     UserPaths = async_lib:env(paths, []),
-    SpyPaths = [filename:dirname(X) || X <- code:get_path()] ++ UserPaths,
+    ExcludePaths = [".", filename:join(code:root_dir(), "lib")],
+    SpyPaths = [filename:dirname(X) || X <- code:get_path() -- ExcludePaths]
+        ++ UserPaths,
 
     %% Add supplementary library for parse transform AST
     code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- SpyPaths ])),
