@@ -64,7 +64,7 @@ init(_Args) ->
 
     %% Follow for all directory in release
     Inotify = inotifywait:start(string:join(SpyPaths, " "), Opts),
-    Interval = async_lib:env(collect_interval, 2000), %% msec
+    Interval = async_lib:env(collect_interval, 600), %% msec
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
     {ok, #s{inotify = Inotify, timer = TRef, plugins = Plugins}}.
 
