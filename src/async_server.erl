@@ -56,15 +56,19 @@ init(_Args) ->
 
     UserPaths = async_lib:env(paths, []),
     ExcludePaths = [".", filename:join(code:root_dir(), "lib")],
-    SpyPaths = [filename:dirname(X) || X <- code:get_path() -- ExcludePaths]
+    PreSpyPaths = [filename:dirname(X) || X <- code:get_path() -- ExcludePaths]
         ++ UserPaths,
-
+    SpyPaths = lists:map(
+        fun(Dir) ->
+            RealDir = async_lib:get_real_directory(Dir),
+            async_lib:get_real_directory(filename:join(RealDir, "src"))
+        end, PreSpyPaths),
     %% Add supplementary library for parse transform AST
-    code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- SpyPaths ])),
+    code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- PreSpyPaths ])),
 
     %% Follow for all directory in release
     Inotify = inotifywait:start(string:join(SpyPaths, " "), Opts),
-    Interval = async_lib:env(collect_interval, 600), %% msec
+    Interval = async_lib:env(collect_interval, 200), %% msec
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
     {ok, #s{inotify = Inotify, timer = TRef, plugins = Plugins}}.
 
