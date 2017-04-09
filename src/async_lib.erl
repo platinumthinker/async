@@ -4,7 +4,9 @@
          chain/2,
          env/1,
          env/2,
-         get_real_directory/1
+         get_real_directory/1,
+         format/1,
+         format_list/2
         ]).
 
 -export_type([
@@ -42,3 +44,25 @@ get_real_directory(Dir) ->
         {error, _} ->
             Dir
     end.
+
+-spec format({Filename :: file:filename(), Errors :: [{_N, module(), _}]}) ->
+    {Filename :: file:filename(), string()}.
+format({Filename, Errors}) ->
+    ErrorsStr = [ io_lib:format("~p: ~ts", [Line, ErrFormater:format_error(Err)])
+                  || {Line, ErrFormater, Err} <- Errors ],
+    {Filename, ErrorsStr}.
+
+-spec format_list(Errors :: [{_, {_, _, _}}], Token :: string()) -> ok.
+format_list(Errors, Token) ->
+    Fmt = string:join(["~n~ts:",
+                       "=============================================",
+                       Token,
+                       "=============================================",
+                       "~ts",
+                       "=============================================~n"
+                      ], io_lib:nl()),
+    io:format("~ts~n", [lists:map(
+      fun(Error) ->
+          {File, Errs} = format(Error),
+          io_lib:format(Fmt, [File, string:join(Errs, "\n")])
+      end, Errors)]).
