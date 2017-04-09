@@ -1,7 +1,5 @@
 -module(async_plugin).
 
--include_lib("systools/include/inotify.hrl").
-
 -type filetype()   :: string().
 -type opt()        :: {atom(), any()}.
 -type filename()   :: file:filename().
@@ -76,8 +74,9 @@ init(_) ->
         end, {#{}, #{}}),
     #s{plugins = Plugins, filetypes = Files}.
 
--spec chain({#inotify{}, #s{}}) -> ok | {ok | error, _Reason}.
-chain({#inotify{event = Event, file = File, watched = Dir}, State}) ->
+-spec chain({{Path:: string(), Events :: [atom()]}, #s{}}) ->
+    ok | {ok | error, _Reason}.
+chain({{Path, Event}, State}) ->
     Chain = [
              fun change/1,
              fun compile/1,
@@ -85,6 +84,8 @@ chain({#inotify{event = Event, file = File, watched = Dir}, State}) ->
              fun load_binary/1,
              fun after_load/1
             ],
+    File = filename:basename(Path),
+    Dir = filename:dirname(Path),
     user_callback('init', {Event, File, Dir}),
     Res = case async_lib:chain(Chain, {Event, File, Dir, State}) of
         {error, Reason} ->

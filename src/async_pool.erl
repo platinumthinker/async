@@ -2,8 +2,6 @@
 
 -behaviour(gen_server).
 
--include_lib("systools/include/inotify.hrl").
-
 -export([
          start_link/1,
          spawn/3

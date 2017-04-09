@@ -1,7 +1,5 @@
 -module (async_hrl).
 
--include_lib("systools/include/inotify.hrl").
-
 -export([
          filetypes/0,
          init/1,
