@@ -18,7 +18,7 @@
         ]).
 
 -record(s, {
-          refs = #{} :: #{},
+          ref :: any(),
           pause = false :: boolean(),
           patching = false :: boolean(),
           changed_files = queue:new() :: queue:queue(),
@@ -60,12 +60,10 @@ init(_Args) ->
     code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- PreSpyPaths ])),
 
     %% Follow for all directory in release
-    Refs = maps:from_list(
-     [ {Path, erlfsmon:subscribe(Path, fun(_) -> true end, [modified, renamed])} ||
-        Path <- SpyPaths ]),
+    Ref = erlfsmon:subscribe(SpyPaths, fun(_) -> true end, [modified, renamed]),
     Interval = async_lib:env(collect_interval, 200), %% msec
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
-    {ok, #s{refs = Refs, timer = TRef, plugins = Plugins}}.
+    {ok, #s{ref = Ref, timer = TRef, plugins = Plugins}}.
 
 -spec terminate(_Reason, #s{}) -> ok.
 terminate(_Reason, #s{}) -> ok.
