@@ -127,10 +127,13 @@ change({Event, File, Dir, State}) ->
 
 compile({Arg, State = #s{ext = Ext} }) ->
     case plug(Ext, compile, Arg, State) of
+        {ok, Module, Binary, []} ->
+            {ok, {Module, Binary, [], State}};
         {ok, Module, Binary, Warnings} ->
-            io:format("Compile ~p with warnings~n", [Module]),
+            async_lib:format_list(Warnings, "WARNINGS"),
             {ok, {Module, Binary, Warnings, State}};
-        {error, _Errors, _Warnings}      ->
+        {error, Errors, _Warnings}      ->
+            async_lib:format_list(Errors, "ERRORS"),
             {error, compile_with_error};
         %% Error or Done
         {Other, Any} -> {Other, {Any, State}}
