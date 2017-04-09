@@ -2,7 +2,7 @@
 Sync inspired developer helper tools but very customizing.
 
 ## Requares:
-Sync uses intotify-tools for monitoring FS and rebar for compile this project.
+Async uses intotifywait, fsevent_watch or fanotify_watch (it depends on the type of OS) for monitoring FS and rebar for compile this project.
 
 ## For build:
 ```
@@ -52,11 +52,11 @@ erl => module tc_member recompile
 ```
 
 ## features:
+- [x] Support rebar3 projects
 - [x] Recompile changes erl,hrl file
 - [x] User callback for filetype and unknown (other) filetypes
 - [x] Run eunit, dialyzer, elvis, user callback after reload file (optional)
 - [ ] Support other files (dtl, lfe, elixir)
 - [ ] Notification for recompile files (and users callback)
-- [ ] Integrate with rebar (use options from rebar.config)
 - [ ] Patches other nodes in cluster
 - [ ] Writes changes on disk (beam files)
