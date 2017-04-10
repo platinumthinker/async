@@ -9,7 +9,7 @@
 %% Application callbacks
 %% ===================================================================
 
--spec start(normal, list()) -> {ok | error, _Reason}.
+-spec start(normal, list()) -> {ok, pid()} | {error, _Reason}.
 start(_StartType, _StartArgs) ->
     async_sup:start_link().
 

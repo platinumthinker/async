@@ -62,7 +62,7 @@
 -callback after_load({module()}, _State) -> ok.
 
 %% ================================ API ======================================
--spec init(_Opts) -> #{}.
+-spec init(_Opts) -> #s{}.
 init(_) ->
     {Plugins, Files} = fold(
         fun(Plugin, {AccState, AccFiletype}) ->
@@ -177,7 +177,7 @@ plug(Ext, Action, Arg, #s{plugins = Plugins, filetypes = FS}) ->
     user_callback(Action, Arg),
     Res.
 
--spec user_callback(Func :: atom(), Arg :: tuple()) -> ok.
+-spec user_callback(Func :: atom(), Arg :: tuple() | atom()) -> ok.
 user_callback(Func, Arg) ->
     case async_lib:env(Func, []) of
         MF = {_, _} -> run_user_callback([MF], Arg);

@@ -32,10 +32,7 @@ terminate(_State) -> ok.
 
 -spec change({async_plugin:filetype(),
              async_plugin:filename(),
-             async_plugin:event()}, #s{}) ->
-    {ok, [{async_plugin:filetype(),
-           async_plugin:filename(),
-           [async_plugin:opt()]}]}.
+             async_plugin:event()}, #s{}) -> {done, []}.
 change({"hrl", FileChange, Event}, #s{src_files = SrcFiles}) ->
     io:format("hrl => module ~ts recompile~n",
               [filename:basename(FileChange, ".hrl")]),

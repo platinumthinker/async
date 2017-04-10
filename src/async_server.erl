@@ -5,7 +5,11 @@
 -export([
          start_link/0,
          heartbeat/0,
-         event/1
+         event/1,
+         watch/1,
+         unwatch/1,
+         pause/0,
+         unpause/0
         ]).
 
 -export([
@@ -18,12 +22,12 @@
         ]).
 
 -record(s, {
-          ref :: any(),
-          pause = false :: boolean(),
+          refs = #{} :: #{string() => _Ref},
           patching = false :: boolean(),
           changed_files = queue:new() :: queue:queue(),
           timer :: timer:tref() | undefined,
-          plugins :: any()
+          plugins :: any(),
+          interval = 100 :: pos_integer()
          }).
 
 %% API
@@ -38,8 +42,18 @@ heartbeat() -> gen_server:cast(?MODULE, heartbeat).
 -spec event({File :: string(), Action :: atom()}) -> any().
 event(Event = {_File, _Action}) -> ?MODULE ! {erlfsmon_events, Event}.
 
+-spec watch(Path :: string()) -> ok | {error, _Reason}.
+watch(Path) -> gen_server:call(?MODULE, {watch, Path}).
+-spec unwatch(Path :: string()) -> ok | {error, _Reason}.
+unwatch(Path) -> gen_server:call(?MODULE, {unwatch, Path}).
+
+-spec pause() -> ok.
+pause() -> gen_server:cast(?MODULE, pause).
+-spec unpause() -> ok.
+unpause() -> gen_server:call(?MODULE, unpause).
+
 %% Gen server callbacks
--spec init(_Args) -> #s{}.
+-spec init(_Args) -> {ok, #s{}}.
 init(_Args) ->
     Plugins = async_plugin:init([]),
     % UserEvents = async_lib:env(events, []),
@@ -49,21 +63,11 @@ init(_Args) ->
 
     UserPaths = async_lib:env(paths, []),
     ExcludePaths = [".", filename:join(code:root_dir(), "lib")],
-    PreSpyPaths = [filename:dirname(X) || X <- code:get_path() -- ExcludePaths]
-        ++ UserPaths,
-    SpyPaths = lists:map(
-        fun(Dir) ->
-            RealDir = async_lib:get_real_directory(Dir),
-            async_lib:get_real_directory(filename:join(RealDir, "src"))
-        end, PreSpyPaths),
-    %% Add supplementary library for parse transform AST
-    code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- PreSpyPaths ])),
-
-    %% Follow for all directory in release
-    Ref = erlfsmon:subscribe(SpyPaths, fun(_) -> true end, [modified, renamed]),
+    Refs = watch_path(code:get_path(), ExcludePaths, UserPaths),
     Interval = async_lib:env(collect_interval, 200), %% msec
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
-    {ok, #s{ref = Ref, timer = TRef, plugins = Plugins}}.
+    {ok, #s{refs = Refs, plugins = Plugins,
+            interval = Interval, timer = TRef}}.
 
 -spec terminate(_Reason, #s{}) -> ok.
 terminate(_Reason, #s{}) -> ok.
@@ -72,6 +76,22 @@ terminate(_Reason, #s{}) -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 -spec handle_call(_Reqest, _From, #s{}) -> {noreply, #s{}}.
+handle_call({watch, Path = [_ | _]}, _From, State = #s{refs = Refs}) ->
+    case maps:find(Path, Refs) of
+        {ok, _} ->
+            {reply, {error, already_watch}, State};
+        _ ->
+            Refs1 = watch_path([Path]),
+            {reply, ok, State#s{refs = maps:merge(Refs, Refs1)}}
+    end;
+handle_call({unwatch, Path = [_ | _]}, _From, State = #s{refs = Refs}) ->
+    case maps:take(Path, Refs) of
+        {Value, Refs2} ->
+            erlfsmon:unsubscribe(Value),
+            {reply, ok, State#s{refs = Refs2}};
+        _ ->
+            {reply, {error, not_found_subscibtion, State}}
+    end;
 handle_call(Reqest, _From, State) ->
     io:format("Unknown handle_call ~p ~n", [Reqest]),
     {noreply, State}.
@@ -81,6 +101,19 @@ handle_cast(heartbeat, State = #s{changed_files = Files,
                                   plugins = PlugStates}) ->
     ok = eval_changes(Files, PlugStates),
     {noreply, State#s{changed_files = queue:new()}};
+
+handle_cast(pause, State = #s{timer = undefined}) ->
+    {noreply, State};
+handle_cast(unpause, State = #s{timer = Tref})
+  when Tref /= undefined ->
+    {noreply, State};
+handle_cast(pause, State = #s{timer = TRef}) ->
+    timer:cancel(TRef),
+    {noreply, State};
+handle_cast(unpause, State = #s{timer = undefined, interval = Interval}) ->
+    {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
+    {noreply, State#s{timer = TRef}};
+
 handle_cast(Reqest, State) ->
     io:format("Unknown handle_cast ~p ~n", [Reqest]),
     {noreply, State}.
@@ -103,3 +136,27 @@ eval_changes(Files, PlugStates) ->
             async_pool:spawn(File, fun async_plugin:chain/1, {Event, PlugStates}),
             eval_changes(Files1, PlugStates)
     end.
+
+-spec watch_path(WatchPath :: [string()]) -> _Ref.
+watch_path(WatchPath) ->
+    watch_path(WatchPath, [], []).
+
+-spec watch_path(Path, Path, Path) -> #{string() => _Ref}
+                                        when Path :: [string()].
+watch_path(WatchPath, ExcludePaths, UserPaths) ->
+    PreSpyPaths = [filename:dirname(X) || X <- WatchPath -- ExcludePaths]
+        ++ UserPaths,
+    SpyPaths = lists:map(
+        fun(Dir) ->
+            RealDir = async_lib:get_real_directory(Dir),
+            async_lib:get_real_directory(filename:join(RealDir, "src"))
+        end, PreSpyPaths),
+    %% Add supplementary library for parse transform AST
+    code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- PreSpyPaths ])),
+
+    %% Follow for all directory in release
+    Ref = erlfsmon:subscribe(SpyPaths, fun filter_all/1, [modified, renamed]),
+    maps:from_list([ {Path, Ref} || Path <- SpyPaths ]).
+
+-spec filter_all(_) -> true.
+filter_all(_) -> true.
