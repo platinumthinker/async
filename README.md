@@ -20,6 +20,12 @@ Error in "tc_member.erl" => compile_with_error
 erl => module tc_member recompile
 ```
 
+## API:
+* async:watch(Dir)   - watching src in user directory
+* async:unwatch(Dir) - unwatch for user directory
+* async:pause()   - pause and collecting changes
+* async:unpause() - unpause and compile all changes
+
 ## Options:
 ```
 {async, [
