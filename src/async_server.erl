@@ -146,17 +146,28 @@ watch_path(WatchPath) ->
 watch_path(WatchPath, ExcludePaths, UserPaths) ->
     PreSpyPaths = [filename:dirname(X) || X <- WatchPath -- ExcludePaths]
         ++ UserPaths,
-    SpyPaths = lists:map(
+    SpyPaths = lists:filtermap(
         fun(Dir) ->
             RealDir = async_lib:get_real_directory(Dir),
-            async_lib:get_real_directory(filename:join(RealDir, "src"))
+            DirSrc = filename:join(RealDir, "src"),
+            EndPath = async_lib:get_real_directory(DirSrc),
+            case filelib:is_dir(EndPath) of
+                true -> {true, EndPath};
+                false -> false
+            end
         end, PreSpyPaths),
-    %% Add supplementary library for parse transform AST
-    code:add_pathsa(lists:usort([ filename:dirname(Dir) || Dir <- PreSpyPaths ])),
 
-    %% Follow for all directory in release
-    Ref = erlfsmon:subscribe(SpyPaths, fun filter_all/1, [modified, renamed]),
-    maps:from_list([ {Path, Ref} || Path <- SpyPaths ]).
+    case SpyPaths of
+        [] -> #{};
+        _ ->
+            %% Add supplementary library for parse transform AST
+            Pathsa = lists:usort([ filename:dirname(Dir) || Dir <- PreSpyPaths ]),
+            code:add_pathsa(Pathsa),
+
+            %% Follow for all directory in release
+            Ref = erlfsmon:subscribe(SpyPaths, fun filter_all/1, [modified, renamed]),
+            maps:from_list([ {Path, Ref} || Path <- SpyPaths ])
+    end.
 
 -spec filter_all(_) -> true.
 filter_all(_) -> true.
