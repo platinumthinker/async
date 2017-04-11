@@ -14,7 +14,7 @@ rebar get-deps compile
 rebar shell
 
 1> application:ensure_all_started(async).
-2>
+2> async:watch(".").
 Error in "tc_member.erl" => compile_with_error
 
 erl => module tc_member recompile
