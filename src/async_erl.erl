@@ -19,7 +19,7 @@ filetypes() -> [ "erl" ].
 
 -spec init([async_plugin:opt()]) -> #s{}.
 init(_Opts) ->
-    #s{default_compile_opts = [bin_opt_info, return, binary, verbose]}.
+    #s{default_compile_opts = [debug, bin_opt_info, return, binary, verbose]}.
 
 -spec terminate(#s{}) -> ok.
 terminate(_State) -> ok.
