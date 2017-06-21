@@ -66,3 +66,4 @@ erl => module tc_member recompile
 - [ ] Notification for recompile files (and users callback)
 - [ ] Patches other nodes in cluster
 - [ ] Writes changes on disk (beam files)
+- [ ] Support custom options for compiler
