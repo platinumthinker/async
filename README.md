@@ -35,7 +35,7 @@ erl => module tc_member recompile
   {events, []},
   %% addition path for monitoring changes
   {paths, [ "/home/develop/my_lib" ]},
-  {inotify_opts, [{exclude, "\\.tags"}, {exclude, "my_file"}]},
+  {exclude_path_regexp, [ "/usr/lib/erlang/*" ]},
   %% interval in ms between processed changes files
   {collect_interval, 2000},
 

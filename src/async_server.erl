@@ -66,7 +66,7 @@ init(_Args) ->
 
     UserPaths = async_lib:env(paths, []),
     ExcludePaths = [".", filename:join(code:root_dir(), "lib")],
-    Refs = watch_path(code:get_path(), ExcludePaths, UserPaths),
+    Refs = watch_path(code:get_path() ++ UserPaths, ExcludePaths),
     Interval = async_lib:env(collect_interval, 200), %% msec
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
     {ok, #s{refs = Refs, plugins = Plugins,
@@ -143,23 +143,40 @@ eval_changes(Files, PlugStates) ->
 
 -spec watch_path(WatchPath :: [string()]) -> _Ref.
 watch_path(WatchPath) ->
-    watch_path(WatchPath, [], []).
+    watch_path(WatchPath, []).
 
--spec watch_path(Path, Path, Path) -> #{string() => _Ref}
+-spec watch_path(Path, Path) -> #{string() => _Ref}
                                         when Path :: [string()].
-watch_path(WatchPath, ExcludePaths, UserPaths) ->
-    PreSpyPaths = [filename:dirname(X) || X <- WatchPath -- ExcludePaths]
-        ++ UserPaths,
-    SpyPaths = lists:filtermap(
-        fun(Dir) ->
+watch_path(WatchPath, ExcludePaths) ->
+    PreSpyPaths = [filename:dirname(X) || X <- WatchPath -- ExcludePaths],
+    SpyPaths = lists:foldl(
+        fun(Dir, AccRes) ->
             RealDir = async_lib:get_real_directory(Dir),
             DirSrc = filename:join(RealDir, "src"),
-            EndPath = async_lib:get_real_directory(DirSrc),
-            case filelib:is_dir(EndPath) of
-                true -> {true, EndPath};
-                false -> false
+            EndPathSrc = async_lib:get_real_directory(DirSrc),
+            DirInclude = filename:join(RealDir, "include"),
+            EndPathInclude = async_lib:get_real_directory(DirInclude),
+            case {filelib:is_dir(EndPathSrc), filelib:is_dir(EndPathInclude)} of
+                {true, true } -> [EndPathSrc, EndPathInclude | AccRes];
+                {true, false} -> [EndPathSrc | AccRes];
+                {false, _   } -> AccRes
             end
-        end, PreSpyPaths),
+        end, [], PreSpyPaths),
+
+    RegExpPaths = async_lib:env(exclude_path_regexp, []),
+    FilterSpyPath = lists:filter(
+        fun(Dir) ->
+            not lists:any(
+                fun(RegExp) ->
+                    case re:run(Dir, RegExp, [unicode, {capture, first}]) of
+                        {match, _} -> true;
+                        _ -> false
+                    end
+                end, RegExpPaths)
+        end, SpyPaths),
+
+
+    io:format("Monitoring ~p~n", [FilterSpyPath]),
 
     case SpyPaths of
         [] -> #{};
@@ -169,8 +186,8 @@ watch_path(WatchPath, ExcludePaths, UserPaths) ->
             code:add_pathsa(Pathsa),
 
             %% Follow for all directory in release
-            Ref = erlfsmon:subscribe(SpyPaths, fun filter_all/1, [modified, renamed]),
-            maps:from_list([ {Path, Ref} || Path <- SpyPaths ])
+            Ref = erlfsmon:subscribe(FilterSpyPath, fun filter_all/1, [modified, renamed]),
+            maps:from_list([ {Path, Ref} || Path <- FilterSpyPath])
     end.
 
 -spec filter_all(_) -> true.
