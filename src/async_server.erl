@@ -51,9 +51,9 @@ unwatch(Path) -> gen_server:call(?MODULE, {unwatch, Path}).
 -spec pause() -> ok.
 pause() -> gen_server:cast(?MODULE, pause).
 -spec unpause() -> ok.
-unpause() -> gen_server:call(?MODULE, unpause).
+unpause() -> gen_server:cast(?MODULE, unpause).
 -spec forget_changes() -> ok.
-forget_changes() -> gen_server:call(?MODULE, forget_changes).
+forget_changes() -> gen_server:cast(?MODULE, forget_changes).
 
 %% Gen server callbacks
 -spec init(_Args) -> {ok, #s{}}.
@@ -68,7 +68,12 @@ init(_Args) ->
     ExcludePaths = [".", filename:join(code:root_dir(), "lib")],
     Refs = watch_path(code:get_path() ++ UserPaths, ExcludePaths),
     Interval = async_lib:env(collect_interval, 200), %% msec
-    {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
+    {ok, TRef} = case async_lib:env(pause, false) of
+        false ->
+            timer:apply_interval(Interval, ?MODULE, heartbeat, []);
+        true ->
+            {ok, undefined}
+    end,
     {ok, #s{refs = Refs, plugins = Plugins,
             interval = Interval, timer = TRef}}.
 
@@ -100,22 +105,28 @@ handle_call(Reqest, _From, State) ->
     {noreply, State}.
 
 -spec handle_cast(_Reqest, #s{}) -> {noreply, #s{}}.
+%% Apply changes by timer
 handle_cast(heartbeat, State = #s{changed_files = Files,
                                   plugins = PlugStates}) ->
     ok = eval_changes(Files, PlugStates),
     {noreply, State#s{changed_files = queue:new()}};
 
-handle_cast(pause, State = #s{timer = undefined}) ->
-    {noreply, State};
-handle_cast(unpause, State = #s{timer = Tref})
-  when Tref /= undefined ->
-    {noreply, State};
-handle_cast(pause, State = #s{timer = TRef}) ->
+%% Cancel timer for pause
+handle_cast(pause, State = #s{timer = TRef})
+  when TRef =/= undefined ->
     timer:cancel(TRef),
-    {noreply, State};
+    {noreply, State#s{timer = undefined}};
+%% Add timer for unpause
 handle_cast(unpause, State = #s{timer = undefined, interval = Interval}) ->
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
     {noreply, State#s{timer = TRef}};
+%% Already pause
+handle_cast(pause, State = #s{timer = undefined}) ->
+    {noreply, State};
+%% Already unpause
+handle_cast(unpause, State = #s{}) ->
+    {noreply, State};
+
 handle_cast(forget_changes, State = #s{}) ->
     {noreply, State#s{changed_files = queue:new()}};
 handle_cast(Reqest, State) ->

@@ -30,6 +30,8 @@ erl => module tc_member recompile
 ## Options:
 ```
 {async, [
+  %% Default state for pause after start async
+  {pause, true},
   {plugins, [ my_plugin1, my_plugin2 ]},
   %% inotify extra events (see man inotifywait)
   {events, []},
