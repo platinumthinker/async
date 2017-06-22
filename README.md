@@ -43,17 +43,20 @@ erl => module tc_member recompile
 
   %%% User callbacks run after async system callbacks
   %% Format {Action :: atom(), [{Module, Function}]} or
-  %%        {Action :: atom(),  {Module, Function} }
-  %% when Module:Function is fun/1
+  %%        {Action :: atom(),  {Module, Function}} or
+  %%        {Action :: atom(),  {cmd, Command}}
+  %% when Module:Function is fun/1,
+  %%      Command is string for run programm
   %% Mandatory run
   {init,        {erlang, display}},
 
   %% Optional
-  {change,      [{erlang, display}]},
+  {change,      [{erlang, display}] },
   {compile,     {erlang, display}},
   {pre_load,    {erlang, display}},
   {load,        [{erlang, display}, {eunit, test}] },
-  {after_load,  {erlang, display}},
+  {after_load,  [{erlang, display}, {cmd, "notify-send"}] },
+  {error,       [{cmd, "notify-send"}]
 
   %% Mandatory run
   {end,         {erlang, display}}
@@ -64,6 +67,7 @@ erl => module tc_member recompile
 - [x] Support rebar3 projects
 - [x] Recompile changes erl,hrl file
 - [x] User callback for filetype and unknown (other) filetypes
+- [x] User command from OS for filetype and unknown (other) filetypes
 - [x] Run eunit, dialyzer, elvis, user callback after reload file (optional)
 - [ ] Support other files (dtl, lfe, elixir)
 - [ ] Notification for recompile files (and users callback)

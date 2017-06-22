@@ -89,7 +89,7 @@ chain({{Path, Event}, State}) ->
     user_callback('init', {Event, File, Dir}),
     Res = case async_lib:chain(Chain, {Event, File, Dir, State}) of
         {error, Reason} ->
-            io:format("Error in ~p => ~p~n", [File, Reason]),
+            user_callback('error', {File, Reason}),
             {error, Reason};
         Other -> Other
     end,
@@ -115,7 +115,8 @@ change({Event, File, Dir, State}) ->
     FilePath = filename:absname(filename:join(Dir, File)),
     Args = {Ext, FilePath, Event},
     case plug(Ext, change, Args, State) of
-        nothing -> {done, {not_found_plugin_for, Ext}};
+        nothing ->
+            {done, {not_found_plugin_for, Ext}};
         {ok, {NFile, NOpts}} ->
             NExt = filename:extension(NFile),
             NState = State#s{ext = NExt, file = NFile},
@@ -180,12 +181,15 @@ plug(Ext, Action, Arg, #s{plugins = Plugins, filetypes = FS}) ->
 -spec user_callback(Func :: atom(), Arg :: tuple() | atom()) -> ok.
 user_callback(Func, Arg) ->
     case async_lib:env(Func, []) of
-        MF = {_, _} -> run_user_callback([MF], Arg);
-        Funcs  -> run_user_callback(Funcs, Arg)
+        MF = {_, _} -> run_user_callback([MF], Func, Arg);
+        Funcs  -> run_user_callback(Funcs, Func, Arg)
     end.
 
--spec run_user_callback([{M :: atom(), F :: atom()}], _) -> ok.
-run_user_callback([{M, F} | T], Arg)
+-spec run_user_callback([{M :: atom(), F :: atom()}], Func :: atom(), _) -> ok.
+run_user_callback([{cmd, Command = [_Char | _]} | T], Func, Arg) ->
+    os:cmd(io_lib:format("'~ts' '~p' '~p'", [Command, Func, Arg])),
+    run_user_callback(T, Func, Arg);
+run_user_callback([{M, F} | T], Func, Arg)
   when is_atom(M), is_atom(F) ->
     case erlang:function_exported(M, F, 1) of
         true ->
@@ -193,5 +197,6 @@ run_user_callback([{M, F} | T], Arg)
         _ ->
             ok
     end,
-    run_user_callback(T, Arg);
-run_user_callback([], _) -> ok.
+    run_user_callback(T, Func, Arg);
+run_user_callback([_ | T], Func, Arg) -> run_user_callback(T, Func, Arg);
+run_user_callback([], _, _) -> ok.
