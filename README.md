@@ -25,6 +25,7 @@ erl => module tc_member recompile
 * async:unwatch(Dir) - unwatch for user directory
 * async:pause()   - pause and collecting changes
 * async:unpause() - unpause and compile all changes
+* async:forget_changes() - forget chenges files (useful in pause)
 
 ## Options:
 ```

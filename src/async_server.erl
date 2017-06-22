@@ -9,7 +9,8 @@
          watch/1,
          unwatch/1,
          pause/0,
-         unpause/0
+         unpause/0,
+         forget_changes/0
         ]).
 
 -export([
@@ -51,6 +52,8 @@ unwatch(Path) -> gen_server:call(?MODULE, {unwatch, Path}).
 pause() -> gen_server:cast(?MODULE, pause).
 -spec unpause() -> ok.
 unpause() -> gen_server:call(?MODULE, unpause).
+-spec forget_changes() -> ok.
+forget_changes() -> gen_server:call(?MODULE, forget_changes).
 
 %% Gen server callbacks
 -spec init(_Args) -> {ok, #s{}}.
@@ -113,7 +116,8 @@ handle_cast(pause, State = #s{timer = TRef}) ->
 handle_cast(unpause, State = #s{timer = undefined, interval = Interval}) ->
     {ok, TRef} = timer:apply_interval(Interval, ?MODULE, heartbeat, []),
     {noreply, State#s{timer = TRef}};
-
+handle_cast(forget_changes, State = #s{}) ->
+    {noreply, State#s{changed_files = queue:new()}};
 handle_cast(Reqest, State) ->
     io:format("Unknown handle_cast ~p ~n", [Reqest]),
     {noreply, State}.
