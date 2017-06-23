@@ -56,10 +56,10 @@ erl => module tc_member recompile
   {pre_load,    {erlang, display}},
   {load,        [{erlang, display}, {eunit, test}] },
   {after_load,  [{erlang, display}, {cmd, "notify-send"}] },
-  {error,       [{cmd, "notify-send"}]
+  {error,       [{cmd, "notify-send"}]},
 
   %% Mandatory run
-  {end,         {erlang, display}}
+  {'end',         {erlang, display}}
 ]}.
 ```
 
