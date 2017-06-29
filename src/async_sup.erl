@@ -24,7 +24,7 @@ start_link() ->
 %% Supervisor callbacks
 %% ===================================================================
 
--spec init([]) -> {ok, _}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, { {one_for_all, 10, 1}, [
                                  ?CHILD(async_server, [], worker),
