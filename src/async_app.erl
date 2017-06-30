@@ -11,6 +11,7 @@
 
 -spec start(normal, list()) -> {ok, pid()} | {error, _Reason}.
 start(_StartType, _StartArgs) ->
+    code:load_file(async),
     async_sup:start_link().
 
 -spec stop(atom()) -> ok.
