@@ -163,15 +163,13 @@ watch_path(WatchPath, ExcludePaths) ->
     SpyPaths = lists:foldl(
         fun(Dir, AccRes) ->
             RealDir = async_lib:get_real_directory(Dir),
-            DirSrc = filename:join(RealDir, "src"),
-            EndPathSrc = async_lib:get_real_directory(DirSrc),
-            DirInclude = filename:join(RealDir, "include"),
-            EndPathInclude = async_lib:get_real_directory(DirInclude),
-            case {filelib:is_dir(EndPathSrc), filelib:is_dir(EndPathInclude)} of
-                {true, true } -> [EndPathSrc, EndPathInclude | AccRes];
-                {true, false} -> [EndPathSrc | AccRes];
-                {false, _   } -> AccRes
-            end
+            Dirs = lists:filtermap(
+                fun(Dir1) ->
+                    Path = filename:join(RealDir, Dir1),
+                    EndPath = async_lib:get_real_directory(Path),
+                    filelib:is_dir(EndPath) andalso {true, EndPath}
+                end, ["src", "include", "priv"]),
+            Dirs ++ AccRes
         end, [], PreSpyPaths),
 
     RegExpPaths = async_lib:env(exclude_path_regexp, []),

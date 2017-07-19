@@ -65,11 +65,11 @@ erl => module tc_member recompile
 
 ## features:
 - [x] Support rebar3 projects
-- [x] Recompile changes erl,hrl file
+- [x] Recompile changes erl,hrl,dtl file
 - [x] User callback for filetype and unknown (other) filetypes
 - [x] User command from OS for filetype and unknown (other) filetypes
 - [x] Run eunit, dialyzer, elvis, user callback after reload file (optional)
-- [ ] Support other files (dtl, lfe, elixir)
+- [ ] Support other files (lfe, elixir)
 - [ ] Notification for recompile files (and users callback)
 - [ ] Patches other nodes in cluster
 - [ ] Writes changes on disk (beam files)

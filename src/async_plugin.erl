@@ -163,7 +163,7 @@ after_load(State = #s{ext = Ext, module = Module}) ->
 
 %% ======================= Internal helper functions ==========================
 plugins() ->
-    [ async_erl, async_hrl ] ++ async_lib:env(plugins, []).
+    [ async_erl, async_hrl, async_dtl ] ++ async_lib:env(plugins, []).
 
 fold(Fun, Acc) -> lists:foldl(Fun, Acc, plugins()).
 
