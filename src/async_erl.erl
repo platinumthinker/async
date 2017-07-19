@@ -1,4 +1,4 @@
--module (async_erl).
+-module(async_erl).
 
 -export([
          filetypes/0,

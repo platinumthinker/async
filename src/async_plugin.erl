@@ -137,7 +137,8 @@ compile({Arg, State = #s{ext = Ext} }) ->
         {error, Errors, _Warnings}      ->
             async_lib:format_list(Errors, "ERRORS"),
             {error, compile_with_error};
-        %% Error or Done
+        {done, _} = Res -> Res;
+        %% Error
         {Other, Any} -> {Other, {Any, State}}
     end.
 

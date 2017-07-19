@@ -1,4 +1,4 @@
--module (async_hrl).
+-module(async_hrl).
 
 -export([
          filetypes/0,
