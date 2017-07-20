@@ -44,7 +44,9 @@ compile({"dtl", File, Opts}, _State) ->
     Module = lists:flatten(filename:basename(File, ".dtl") ++ "_view"),
     case erlydtl:compile(File, list_to_atom(Module), Opts) of
         %% Module not changed
-        {ok, _ModuleRet, <<>>, _Warn} -> {done, not_changed};
+        {ok, _ModuleRet, Bin, _Warn}
+          when Bin == <<>>; Bin == undefined ->
+            {done, not_changed};
         {ok, _ModuleRet, _Binary, _Warn} = Ret ->
             Ret;
         Error ->
