@@ -192,7 +192,11 @@ watch_path(WatchPath, ExcludePaths) ->
         _ ->
             %% Add supplementary library for parse transform AST
             Pathsa = lists:usort([ filename:dirname(Dir) || Dir <- PreSpyPaths ]),
-            code:add_pathsa(Pathsa),
+            UserPathsa = case async_lib:env(include_path, "") of
+                "" -> [];
+                IPath -> filelib:wildcard(IPath)
+            end,
+            code:add_pathsa(Pathsa ++ UserPathsa),
 
             %% Follow for all directory in release
             Ref = erlfsmon:subscribe(FilterSpyPath, fun filter_all/1, [modified, renamed]),
